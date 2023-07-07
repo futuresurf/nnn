@@ -49,7 +49,9 @@ enum action {
 	SEL_OPEN,
 	SEL_NAV_IN,
 	SEL_NEXT,
+	SEL_NEXTX,
 	SEL_PREV,
+	SEL_PREVX,
 	SEL_PGDN,
 	SEL_PGUP,
 	SEL_CTRL_D,
@@ -144,6 +146,12 @@ static struct key bindings[] = {
 	/* Previous */
 	{ 'k',            SEL_PREV },
 	{ KEY_UP,         SEL_PREV },
+	/* NEXT/PREV JUMPING */
+	{ CONTROL('j'),   SEL_NEXTX },
+	{ CONTROL('K'),   SEL_PREVX },
+	{ 'K',   	   	   SEL_PREVX },
+	{ 'J',   		   SEL_NEXTX },
+	{ 'K',		   SEL_PREVX },
 	/* Page down */
 	{ KEY_NPAGE,      SEL_PGDN },
 	/* Page up */
@@ -163,7 +171,7 @@ static struct key bindings[] = {
 	/* Go to first file */
 	{ '\'',           SEL_FIRST },
 	/* Jump to an entry number/offset */
-	{ 'J',            SEL_JUMP },
+	/* { 'J',            SEL_JUMP }, */
 	/* HOME */
 	{ '~',            SEL_CDHOME },
 	/* Initial directory */

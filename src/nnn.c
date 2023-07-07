@@ -413,7 +413,7 @@ static settings cfg = {
 
 alignas(max_align_t) static context g_ctx[CTX_MAX];
 
-static int ndents, cur, last, curscroll, last_curscroll, total_dents = ENTRY_INCR, scroll_lines = 1;
+static int ndents, cur, cur_zero, last, curscroll, last_curscroll, total_dents = ENTRY_INCR, scroll_lines = 1;
 static int nselected;
 #ifndef NOFIFO
 static int fifofd = -1;
@@ -835,6 +835,7 @@ static int spawn(char *file, char *arg1, char *arg2, char *arg3, ushort_t flag);
 static void move_cursor(int target, int ignore_scrolloff);
 static char *load_input(int fd, const char *path);
 static int set_sort_flags(int r);
+static void drawpath(char *path);
 static void statusbar(char *path);
 static bool get_output(char *file, char *arg1, char *arg2, int fdout, bool page);
 #ifndef NOFIFO
@@ -6058,12 +6059,18 @@ static void handle_screen_move(enum action sel)
 	switch (sel) {
 	case SEL_NEXT:
 		if (cfg.rollover || (cur != ndents - 1))
-			move_cursor((cur + 1) % ndents, 0);
+			move_cursor((cur + 1) % ndents, 1);
 		break;
 	case SEL_PREV:
 		if (cfg.rollover || cur)
-			move_cursor((cur + ndents - 1) % ndents, 0);
-		break;
+			move_cursor((cur + ndents - 1) % ndents, 1);
+		break;	
+	case SEL_NEXTX:
+    		move_cursor((cur + 4), 0);
+    		break;
+	case SEL_PREVX:
+    		move_cursor((cur - 4), 0);
+    		break;
 	case SEL_PGDN:
 		onscreen = xlines - 4;
 		move_cursor(curscroll + (onscreen - 1), 1);
@@ -6358,6 +6365,85 @@ static bool set_time_type(int *presel)
 	return ret;
 }
 
+/* DRAW CONTEXTS */
+
+static void drawcontexts(void)
+{
+	int i;
+	for (i = 0; i < CTX_MAX; ++i) { /* 8 chars printed for contexts - "1 2 3 4 " */
+		if (!g_ctx[i].c_cfg.ctxactive)
+			addch(i + '1');
+		else
+			addch((i + '1') | (COLOR_PAIR(i + 1) | A_BOLD
+				/* active: underline, current: reverse */
+				| ((cfg.curctx != i) ? A_UNDERLINE : A_REVERSE)));
+
+	addch(' ');
+	}
+}
+
+
+/* DRAW PATH */
+static void drawpath(char *path)
+{
+	 /* TODO: put below status bar
+	 * TODO: position listing to top of new window space
+	 */
+	/*
+	int DARK_GRAY = 5;
+	attron(COLOR_PAIR(DARK_GRAY));
+	attroff(COLOR_PAIR(DARK_GRAY));
+	*/
+	getmaxyx(stdscr, xlines, xcols);
+
+	int ncols = (xcols <= PATH_MAX) ? xcols : PATH_MAX;
+	int i;
+	
+	/* attron(A_UNDERLINE | COLOR_PAIR(cfg.curctx + 1)); */
+
+	/* Print path */
+	bool in_home = set_tilde_in_path(path);
+	char *ptr = in_home ? &path[homelen - 1] : path;
+
+	i = (int)xstrlen(ptr);
+	if ((i + MIN_DISPLAY_COL) <= ncols)
+		addnstr(ptr, ncols - MIN_DISPLAY_COL); 
+	else {
+		char *base = xmemrchr((uchar_t *)ptr, '/', i);
+
+		if (in_home) {
+			addch(*ptr);
+			++ptr;
+			i = 1;
+		} else
+			i = 0;
+
+		if (ptr && (base != ptr)) {
+			while (ptr < base) {
+				if (*ptr == '/') {
+					i += 2; /* 2 characters added */
+					if (ncols < i + MIN_DISPLAY_COL) {
+						base = NULL; /* Can't print more characters */
+						break;
+					}
+
+					addch(*ptr);
+					addch(*(++ptr));
+				}
+				++ptr;
+			}
+		}
+
+		if (base)
+			addnstr(base, ncols - (MIN_DISPLAY_COL + i));
+	}
+
+	if (in_home)
+		reset_tilde_in_path(path);
+
+	/* attroff(A_UNDERLINE | COLOR_PAIR(cfg.curctx + 1)); */
+}
+
 static void statusbar(char *path)
 {
 	int i = 0, len = 0;
@@ -6368,6 +6454,22 @@ static void statusbar(char *path)
 		printmsg("0/0");
 		return;
 	}
+
+	/* pathline */
+	move(xlines - 2, 0);
+
+	attron(COLOR_PAIR(cfg.curctx + 4));
+	// attron(COLOR_PAIR(C_UND));
+	drawpath(path);
+
+	/* addch(' ');
+	addch('[');
+	drawpath(path);
+	addch(']');
+	addch(' ');
+	*/ 
+
+	attroff(COLOR_PAIR(cfg.curctx + 1));
 
 	/* Get the file extension for regular files */
 	if (S_ISREG(pent->mode)) {
@@ -6385,9 +6487,12 @@ static void statusbar(char *path)
 	if (cfg.fileinfo && get_output("file", "-b", pdents[cur].name, -1, FALSE))
 		mvaddstr(xlines - 2, 2, g_buf);
 
+	
 	tolastln();
 
-	printw("%d/%s ", cur + 1, xitoa(ndents));
+	drawcontexts();
+
+	printw("[%d/%s] ", cur + 1, xitoa(ndents));
 
 	if (g_state.selmode || nselected) {
 		attron(A_REVERSE);
@@ -6418,19 +6523,11 @@ static void statusbar(char *path)
 			addstr(sort);
 
 		/* Timestamp */
+		/* 
 		print_time(&pent->sec, pent->flags);
-
-		addch(' ');
-		addstr(get_lsperms(pent->mode));
-		addch(' ');
-#ifndef NOUG
-		if (g_state.uidgid) {
-			addstr(getpwname(pent->uid));
-			addch(':');
-			addstr(getgrname(pent->gid));
-			addch(' ');
-		}
-#endif
+		addch(' '); 
+		*/
+		
 		if (S_ISLNK(pent->mode)) {
 			if (!cfg.fileinfo) {
 				i = readlink(pent->name, g_buf, PATH_MAX);
@@ -6449,6 +6546,7 @@ static void statusbar(char *path)
 			addstr(coolsize(pent->size));
 			addch(' ');
 			addstr(ptr);
+
 			if (pent->flags & HARD_LINK) {
 				struct stat sb;
 
@@ -6460,10 +6558,27 @@ static void statusbar(char *path)
 				}
 			}
 		}
+	
 		clrtoeol();
 	}
 
+	get_lsperms(pent->mode);
+	/*	
+	move(xlines - 2, 0);
+	addstr(get_lsperms(pent->mode));
+	addch(' ');
+	*/
+
+	#ifndef NOUG
+		if (g_state.uidgid) {
+			addstr(getpwname(pent->uid));
+			addch(':');
+			addstr(getgrname(pent->gid));
+			addch(' ');
+		}
+	#endif
 	attroff(COLOR_PAIR(cfg.curctx + 1));
+	
 	/* Place HW cursor on current for Braille systems */
 	tocursor();
 }
@@ -6505,7 +6620,7 @@ static void draw_line(int ncols)
 		dir = TRUE;
 	}
 
-	move(2 + last - curscroll, 0);
+	move(cur_zero + last - curscroll, 0);
 	printent(&pdents[last], ncols, FALSE);
 
 	if (g_state.oldcolor && (pdents[cur].flags & DIR_OR_DIRLNK)) {
@@ -6518,7 +6633,7 @@ static void draw_line(int ncols)
 		dir = FALSE;
 	}
 
-	move(2 + cur - curscroll, 0);
+	move(cur_zero + cur - curscroll, 0);
 	printent(&pdents[cur], ncols, TRUE);
 
 	/* Must reset e.g. no files in dir */
@@ -6528,13 +6643,16 @@ static void draw_line(int ncols)
 	markhovered();
 }
 
+
+
 static void redraw(char *path)
 {
 	getmaxyx(stdscr, xlines, xcols);
+	cur_zero = 1;
 
 	int ncols = (xcols <= PATH_MAX) ? xcols : PATH_MAX;
 	int onscreen = xlines - 4;
-	int i, j = 1;
+	int i, j = cur_zero; /* start on 2nd line */
 
 	// Fast redraw
 	if (g_state.move) {
@@ -6550,7 +6668,7 @@ static void redraw(char *path)
 	erase();
 
 	/* Enforce scroll/cursor invariants */
-	move_cursor(cur, 1);
+	move_cursor(cur, 0);
 
 	/* Fail redraw if < than 10 columns, context info prints 10 chars */
 	if (ncols <= MIN_DISPLAY_COL) {
@@ -6560,70 +6678,17 @@ static void redraw(char *path)
 
 	//DPRINTF_D(cur);
 	DPRINTF_S(path);
-
-	for (i = 0; i < CTX_MAX; ++i) { /* 8 chars printed for contexts - "1 2 3 4 " */
-		if (!g_ctx[i].c_cfg.ctxactive)
-			addch(i + '1');
-		else
-			addch((i + '1') | (COLOR_PAIR(i + 1) | A_BOLD
-				/* active: underline, current: reverse */
-				| ((cfg.curctx != i) ? A_UNDERLINE : A_REVERSE)));
-
-		addch(' ');
-	}
-
-	attron(A_UNDERLINE | COLOR_PAIR(cfg.curctx + 1));
-
-	/* Print path */
-	bool in_home = set_tilde_in_path(path);
-	char *ptr = in_home ? &path[homelen - 1] : path;
-
-	i = (int)xstrlen(ptr);
-	if ((i + MIN_DISPLAY_COL) <= ncols)
-		addnstr(ptr, ncols - MIN_DISPLAY_COL);
-	else {
-		char *base = xmemrchr((uchar_t *)ptr, '/', i);
-
-		if (in_home) {
-			addch(*ptr);
-			++ptr;
-			i = 1;
-		} else
-			i = 0;
-
-		if (ptr && (base != ptr)) {
-			while (ptr < base) {
-				if (*ptr == '/') {
-					i += 2; /* 2 characters added */
-					if (ncols < i + MIN_DISPLAY_COL) {
-						base = NULL; /* Can't print more characters */
-						break;
-					}
-
-					addch(*ptr);
-					addch(*(++ptr));
-				}
-				++ptr;
-			}
-		}
-
-		if (base)
-			addnstr(base, ncols - (MIN_DISPLAY_COL + i));
-	}
-
-	if (in_home)
-		reset_tilde_in_path(path);
-
-	attroff(A_UNDERLINE | COLOR_PAIR(cfg.curctx + 1));
-
+	
 	/* Go to first entry */
 	if (curscroll > 0) {
-		move(1, 0);
+		move(0, 0);
+		
 #ifdef ICONS_ENABLED
 		addstr(ICON_ARROW_UP);
 #else
 		addch('^');
 #endif
+
 	}
 
 	if (g_state.oldcolor) {
@@ -6631,6 +6696,11 @@ static void redraw(char *path)
 		g_state.dircolor = 1;
 	}
 
+	/* previously had drawpath here */
+	/* TODO: make an input option to place it here or by statusbar
+	 * if statement? */
+	/* move(1, 0); */
+	
 	onscreen = MIN(onscreen + curscroll, ndents);
 
 	ncols = adjust_cols(ncols);
@@ -6639,12 +6709,13 @@ static void redraw(char *path)
 
 	/* Print listing */
 	for (i = curscroll; i < onscreen; ++i) {
-		move(++j, 0);
+		move(j, 0);
 
 		if (len)
 			findmarkentry(len, &pdents[i]);
 
 		printent(&pdents[i], ncols, i == cur);
+		j++; // Increment j here to move to the next line
 	}
 
 	/* Must reset e.g. no files in dir */
@@ -7190,6 +7261,8 @@ nochange:
 			continue;
 		case SEL_NEXT: // fallthrough
 		case SEL_PREV: // fallthrough
+		case SEL_NEXTX: // fallthrough
+		case SEL_PREVX: // fallthrough
 		case SEL_PGDN: // fallthrough
 		case SEL_CTRL_D: // fallthrough
 		case SEL_PGUP: // fallthrough
