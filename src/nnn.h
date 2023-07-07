@@ -146,12 +146,6 @@ static struct key bindings[] = {
 	/* Previous */
 	{ 'k',            SEL_PREV },
 	{ KEY_UP,         SEL_PREV },
-	/* NEXT/PREV JUMPING */
-	{ CONTROL('j'),   SEL_NEXTX },
-	{ CONTROL('K'),   SEL_PREVX },
-	{ 'K',   	   	   SEL_PREVX },
-	{ 'J',   		   SEL_NEXTX },
-	{ 'K',		   SEL_PREVX },
 	/* Page down */
 	{ KEY_NPAGE,      SEL_PGDN },
 	/* Page up */

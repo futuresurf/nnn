@@ -830,13 +830,13 @@ static haiku_nm_h haiku_hnd;
 #endif
 
 /* Forward declarations */
+static void drawpath(char *path);
+static void statusbar(char *path);
 static void redraw(char *path);
 static int spawn(char *file, char *arg1, char *arg2, char *arg3, ushort_t flag);
 static void move_cursor(int target, int ignore_scrolloff);
 static char *load_input(int fd, const char *path);
 static int set_sort_flags(int r);
-static void drawpath(char *path);
-static void statusbar(char *path);
 static bool get_output(char *file, char *arg1, char *arg2, int fdout, bool page);
 #ifndef NOFIFO
 static void notify_fifo(bool force);
@@ -6065,12 +6065,6 @@ static void handle_screen_move(enum action sel)
 		if (cfg.rollover || cur)
 			move_cursor((cur + ndents - 1) % ndents, 1);
 		break;	
-	case SEL_NEXTX:
-    		move_cursor((cur + 4), 0);
-    		break;
-	case SEL_PREVX:
-    		move_cursor((cur - 4), 0);
-    		break;
 	case SEL_PGDN:
 		onscreen = xlines - 4;
 		move_cursor(curscroll + (onscreen - 1), 1);
@@ -6365,8 +6359,6 @@ static bool set_time_type(int *presel)
 	return ret;
 }
 
-/* DRAW CONTEXTS */
-
 static void drawcontexts(void)
 {
 	int i;
@@ -6382,24 +6374,13 @@ static void drawcontexts(void)
 	}
 }
 
-
-/* DRAW PATH */
 static void drawpath(char *path)
 {
-	 /* TODO: put below status bar
-	 * TODO: position listing to top of new window space
-	 */
-	/*
-	int DARK_GRAY = 5;
-	attron(COLOR_PAIR(DARK_GRAY));
-	attroff(COLOR_PAIR(DARK_GRAY));
-	*/
+	 
 	getmaxyx(stdscr, xlines, xcols);
 
 	int ncols = (xcols <= PATH_MAX) ? xcols : PATH_MAX;
 	int i;
-	
-	/* attron(A_UNDERLINE | COLOR_PAIR(cfg.curctx + 1)); */
 
 	/* Print path */
 	bool in_home = set_tilde_in_path(path);
@@ -6441,7 +6422,6 @@ static void drawpath(char *path)
 	if (in_home)
 		reset_tilde_in_path(path);
 
-	/* attroff(A_UNDERLINE | COLOR_PAIR(cfg.curctx + 1)); */
 }
 
 static void statusbar(char *path)
@@ -6455,22 +6435,6 @@ static void statusbar(char *path)
 		return;
 	}
 
-	/* pathline */
-	move(xlines - 2, 0);
-
-	attron(COLOR_PAIR(cfg.curctx + 4));
-	// attron(COLOR_PAIR(C_UND));
-	drawpath(path);
-
-	/* addch(' ');
-	addch('[');
-	drawpath(path);
-	addch(']');
-	addch(' ');
-	*/ 
-
-	attroff(COLOR_PAIR(cfg.curctx + 1));
-
 	/* Get the file extension for regular files */
 	if (S_ISREG(pent->mode)) {
 		i = (int)(pent->nlen - 1);
@@ -6482,11 +6446,15 @@ static void statusbar(char *path)
 	} else
 		ptr = "\b";
 
+	/* pathline */
+	move(xlines - 2, 0);
+
 	attron(COLOR_PAIR(cfg.curctx + 1));
+	
+	drawpath(path);
 
 	if (cfg.fileinfo && get_output("file", "-b", pdents[cur].name, -1, FALSE))
 		mvaddstr(xlines - 2, 2, g_buf);
-
 	
 	tolastln();
 
@@ -6563,11 +6531,8 @@ static void statusbar(char *path)
 	}
 
 	get_lsperms(pent->mode);
-	/*	
-	move(xlines - 2, 0);
-	addstr(get_lsperms(pent->mode));
-	addch(' ');
-	*/
+	
+	// addstr(get_lsperms(pent->mode));
 
 	#ifndef NOUG
 		if (g_state.uidgid) {
@@ -6643,8 +6608,6 @@ static void draw_line(int ncols)
 	markhovered();
 }
 
-
-
 static void redraw(char *path)
 {
 	getmaxyx(stdscr, xlines, xcols);
@@ -6681,8 +6644,7 @@ static void redraw(char *path)
 	
 	/* Go to first entry */
 	if (curscroll > 0) {
-		move(0, 0);
-		
+		move((cur_zero - 1), 0);
 #ifdef ICONS_ENABLED
 		addstr(ICON_ARROW_UP);
 #else
@@ -6695,12 +6657,7 @@ static void redraw(char *path)
 		attron(COLOR_PAIR(cfg.curctx + 1) | A_BOLD);
 		g_state.dircolor = 1;
 	}
-
-	/* previously had drawpath here */
-	/* TODO: make an input option to place it here or by statusbar
-	 * if statement? */
-	/* move(1, 0); */
-	
+		
 	onscreen = MIN(onscreen + curscroll, ndents);
 
 	ncols = adjust_cols(ncols);
