@@ -805,7 +805,7 @@ static haiku_nm_h haiku_hnd;
 
 /* Function macros */
 #define tolastln() move(xlines - 1, 0)
-#define tocursor() move(cur + 2 - curscroll, 0)
+#define tocursor() move(cur + 1 - curscroll, 0)
 #define exitcurses() endwin()
 #define printwarn(presel) printwait(strerror(errno), presel)
 #define istopdir(path) ((path)[1] == '\0' && (path)[0] == '/')
@@ -4205,29 +4205,7 @@ static void printent(const struct entry *ent, uint_t namecols, bool sel)
 	char ind = '\0';
 	int attrs;
 
-	if (cfg.showdetail) {
-		int type = ent->mode & S_IFMT;
-		char perms[6] = {' ', ' ', (char)('0' + ((ent->mode >> 6) & 7)),
-				(char)('0' + ((ent->mode >> 3) & 7)),
-				(char)('0' + (ent->mode & 7)), '\0'};
-
-		addch(' ');
-		attrs = g_state.oldcolor ? (resetdircolor(ent->flags), A_DIM)
-					 : (fcolors[C_MIS] ? COLOR_PAIR(C_MIS) : 0);
-		if (attrs)
-			attron(attrs);
-
-		/* Print details */
-		print_time(&ent->sec, ent->flags);
-
-		printw("%s%9s ", perms, (type == S_IFREG || type == S_IFDIR)
-			? coolsize(cfg.blkorder ? (blkcnt_t)ent->blocks << blk_shift : ent->size)
-			: (type = (uchar_t)get_detail_ind(ent->mode), (char *)&type));
-
-		if (attrs)
-			attroff(attrs);
-	}
-
+	
 	attrs = 0;
 
 	uchar_t color_pair = get_color_pair_name_ind(ent, &ind, &attrs);
@@ -4241,6 +4219,8 @@ static void printent(const struct entry *ent, uint_t namecols, bool sel)
 			color_pair = C_MIS;
 		if (color_pair && fcolors[color_pair])
 			attrs |= COLOR_PAIR(color_pair);
+
+
 #ifdef ICONS_ENABLED
 		print_icon(ent, attrs);
 #endif
@@ -4258,11 +4238,57 @@ static void printent(const struct entry *ent, uint_t namecols, bool sel)
 #else
 	addstr(unescape(ent->name, MIN(namecols, ent->nlen) + 1));
 #endif
-
-	if (attrs)
+     if (attrs)
 		attroff(attrs);
 	if (ind)
 		addch(ind);
+
+     if (cfg.showdetail) { /* detail mode */
+		int type = ent->mode & S_IFMT;
+		char perms[6] = {' ', ' ', (char)('0' + ((ent->mode >> 6) & 7)),
+				(char)('0' + ((ent->mode >> 3) & 7)),
+				(char)('0' + (ent->mode & 7)), '\0'};
+
+		addch(' ');
+		attrs = g_state.oldcolor ? (resetdircolor(ent->flags), A_DIM)
+					 : (fcolors[C_MIS] ? COLOR_PAIR(C_MIS) : 0);
+		if (attrs)
+			attron(attrs);
+          
+          
+          int row;
+          int col;
+
+          getyx(stdscr, row, col);  // Get current cursor position
+
+          int desired_start_column_for_date = 15;
+          int num_spaces_needed = desired_start_column_for_date - col;
+          
+          if (num_spaces_needed > 0) {
+              printw("%*s", num_spaces_needed, "");  // Print spaces to move to column 20
+          }
+          
+		/* Print details */
+          
+          /* printw("%10s", ""); */
+          
+          attron(COLOR_PAIR(cfg.curctx + 1));
+	     attron(A_REVERSE);
+
+		print_time(&ent->sec, ent->flags);
+
+		printw("%s %s ", perms, (type == S_IFREG || type == S_IFDIR)
+			? coolsize(cfg.blkorder ? (blkcnt_t)ent->blocks << blk_shift : ent->size)
+			: (type = (uchar_t)get_detail_ind(ent->mode), (char *)&type));
+
+		if (attrs)
+			attroff(attrs);
+          attroff(COLOR_PAIR(cfg.curctx + 1));
+	     attroff(A_REVERSE);
+
+	}
+
+	
 }
 
 static void savecurctx(char *path, char *curname, int nextctx)
@@ -6370,7 +6396,7 @@ static void drawcontexts(void)
 				/* active: underline, current: reverse */
 				| ((cfg.curctx != i) ? A_UNDERLINE : A_REVERSE)));
 
-	addch(' ');
+	/*addch(' '); */
 	}
 }
 
@@ -6447,28 +6473,31 @@ static void statusbar(char *path)
 		ptr = "\b";
 
 	/* pathline */
-	move(xlines - 2, 0);
+	
+     /* move(xlines - 2, 0); 
+     */
+     tolastln();
 
 	attron(COLOR_PAIR(cfg.curctx + 1));
-	
-	drawpath(path);
-
+     
+     	
 	if (cfg.fileinfo && get_output("file", "-b", pdents[cur].name, -1, FALSE))
 		mvaddstr(xlines - 2, 2, g_buf);
 	
-	tolastln();
 
 	drawcontexts();
+     addch(' ');
 
-	printw("[%d/%s] ", cur + 1, xitoa(ndents));
-
-	if (g_state.selmode || nselected) {
+     /* line number */
+	/* printw("[%d/%s] ", cur + 1, xitoa(ndents)); */
+     
+	if (g_state.selmode || nselected) { /* selection mode */
 		attron(A_REVERSE);
 		addch(' ');
 		if (g_state.rangesel)
 			addch('*');
 		else if (g_state.selmode)
-			addch('+');
+			/* addch('+'); */
 		if (nselected)
 			addstr(xitoa(nselected));
 		addch(' ');
@@ -6511,8 +6540,8 @@ static void statusbar(char *path)
 				}
 			}
 		} else {
-			addstr(coolsize(pent->size));
-			addch(' ');
+			/* addstr(coolsize(pent->size));
+			addch(' '); */
 			addstr(ptr);
 
 			if (pent->flags & HARD_LINK) {
@@ -6531,7 +6560,10 @@ static void statusbar(char *path)
 	}
 
 	get_lsperms(pent->mode);
-	
+
+	addch(' ');
+     drawpath(path);
+
 	// addstr(get_lsperms(pent->mode));
 
 	#ifndef NOUG
