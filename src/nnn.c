@@ -6388,14 +6388,9 @@ static bool set_time_type(int *presel)
 static void drawcontexts(void)
 {
 	int i;
-	for (i = 0; i < CTX_MAX; ++i) { /* 8 chars printed for contexts - "1 2 3 4 " */
-		if (!g_ctx[i].c_cfg.ctxactive)
-			addch(i + '1');
-		else
-			addch((i + '1') | (COLOR_PAIR(i + 1) | A_BOLD
-				/* active: underline, current: reverse */
-				| ((cfg.curctx != i) ? A_UNDERLINE : A_REVERSE)));
-
+	for (i = 0; i < CTX_MAX; ++i) {
+		if (g_ctx[i].c_cfg.ctxactive && cfg.curctx == i)
+			addch((i + '1') | (COLOR_PAIR(i + 1) | A_BOLD));
 	/*addch(' '); */
 	}
 }
