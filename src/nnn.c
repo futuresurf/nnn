@@ -6391,7 +6391,6 @@ static void drawcontexts(void)
 	for (i = 0; i < CTX_MAX; ++i) {
 		if (g_ctx[i].c_cfg.ctxactive && cfg.curctx == i)
 			addch((i + '1') | (COLOR_PAIR(i + 1) | A_BOLD));
-	/*addch(' '); */
 	}
 }
 
@@ -6488,14 +6487,14 @@ static void statusbar(char *path)
      
 	if (g_state.selmode || nselected) { /* selection mode */
 		attron(A_REVERSE);
-		addch(' ');
+		/*addch(' '); */
 		if (g_state.rangesel)
 			addch('*');
 		else if (g_state.selmode)
 			/* addch('+'); */
 		if (nselected)
 			addstr(xitoa(nselected));
-		addch(' ');
+		/*addch(' '); */
 		attroff(A_REVERSE);
 		addch(' ');
 	}
@@ -6523,11 +6522,16 @@ static void statusbar(char *path)
 		if (S_ISLNK(pent->mode)) {
 			if (!cfg.fileinfo) {
 				i = readlink(pent->name, g_buf, PATH_MAX);
-				addstr(coolsize(i >= 0 ? i : pent->size)); /* Show symlink size */
+                    if (is_prefix(g_buf, home, homelen)) {
+                              g_buf[0] = '~';
+                              memmove( g_buf + 1, g_buf + homelen, i - homelen + 1);
+                              i -= homelen - 1;
+                    }
+				/* addstr(coolsize(i >= 0 ? i : pent->size));  Show symlink size */
 				if (i > 1) { /* Show symlink target */
 					int y;
 
-					addstr(" ->");
+					addstr(">");
 					getyx(stdscr, len, y);
 					i = MIN(i, xcols - y);
 					g_buf[i] = '\0';
