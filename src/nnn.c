@@ -4126,7 +4126,7 @@ static void print_time(const time_t *timep, const uchar_t flags)
 
 	localtime_r(timep, &t);
 	printw("%s-%02d-%02d %02d:%02d",
-		xitoa(t.tm_year + 1900), t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min);
+		xitoa(t.tm_year - 100), t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min);
 
 	if (flags & FILE_YOUNG)
 		attroff(A_REVERSE);
@@ -4249,7 +4249,7 @@ static void printent(const struct entry *ent, uint_t namecols, bool sel)
 				(char)('0' + ((ent->mode >> 3) & 7)),
 				(char)('0' + (ent->mode & 7)), '\0'};
 
-		addch(' ');
+		addch(' '); 
 		attrs = g_state.oldcolor ? (resetdircolor(ent->flags), A_DIM)
 					 : (fcolors[C_MIS] ? COLOR_PAIR(C_MIS) : 0);
 		if (attrs)
@@ -4261,7 +4261,7 @@ static void printent(const struct entry *ent, uint_t namecols, bool sel)
 
           getyx(stdscr, row, col);  // Get current cursor position
 
-          int desired_start_column_for_date = 15;
+          int desired_start_column_for_date = 20;
           int num_spaces_needed = desired_start_column_for_date - col;
           
           if (num_spaces_needed > 0) {
@@ -4277,7 +4277,7 @@ static void printent(const struct entry *ent, uint_t namecols, bool sel)
 
 		print_time(&ent->sec, ent->flags);
 
-		printw("%s %s ", perms, (type == S_IFREG || type == S_IFDIR)
+		printw("%s %s", perms, (type == S_IFREG || type == S_IFDIR)
 			? coolsize(cfg.blkorder ? (blkcnt_t)ent->blocks << blk_shift : ent->size)
 			: (type = (uchar_t)get_detail_ind(ent->mode), (char *)&type));
 
